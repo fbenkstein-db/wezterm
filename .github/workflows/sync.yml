@@ -1,0 +1,46 @@
+name: sync
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # Weekly on Monday
+  workflow_dispatch:
+
+jobs:
+  sync:
+    if: github.repository == 'fbenkstein-db/wezterm'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: "Checkout dot-github branch"
+        uses: actions/checkout@v4
+        with:
+          ref: dot-github
+          fetch-depth: 1
+
+      - name: "Sync upstream main with custom .github"
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save our .github
+          cp -r .github /tmp/custom-github
+
+          # Fetch upstream main
+          git remote add upstream https://github.com/wezterm/wezterm.git
+          git fetch upstream main
+
+          # Start from upstream main
+          git checkout -B sync-temp upstream/main
+
+          # Replace .github with our custom version
+          git rm -rf .github
+          cp -r /tmp/custom-github .github
+          git add .github
+
+          # Commit and force-push to main
+          git commit -m "Sync upstream main with custom .github from dot-github branch"
+          git push origin HEAD:main --force
