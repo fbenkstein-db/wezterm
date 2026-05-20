@@ -5,19 +5,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "**/*.rs"
-      - "**/Cargo.lock"
-      - "**/Cargo.toml"
-      - ".cargo/config.toml"
-      - ".github/workflows/macos.yml"
-      - "assets/fonts/**/*"
-      - "assets/icon/*"
-      - "assets/macos/**/*"
-      - "ci/deploy.sh"
-      - "ci/macos-entitlement.plist"
-      - "ci/tag-name.sh"
-      - "get-deps"
 
 jobs:
   build:
