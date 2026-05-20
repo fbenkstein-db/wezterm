@@ -60,47 +60,12 @@ jobs:
         shell: bash
         run: "cargo nextest run --all --no-fail-fast --target=aarch64-apple-darwin"
       - name: "Package"
-        shell: bash
-        run: "bash ci/deploy.sh"
-      - name: "Sign"
-        if: env.MACOS_TEAM_ID != ''
         env:
           MACOS_CERT: ${{ secrets.MACOS_CERT }}
           MACOS_CERT_PW: ${{ secrets.MACOS_CERT_PW }}
           MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
         shell: bash
-        run: |
-          set -euo pipefail
-
-          MACOS_PW=$(echo "$MACOS_CERT_PW" | base64 --decode)
-
-          # Set up keychain
-          def_keychain=$(eval echo $(security default-keychain -d user))
-          security delete-keychain build.keychain || true
-          security create-keychain -p "$MACOS_PW" build.keychain
-          security default-keychain -d user -s build.keychain
-          security unlock-keychain -p "$MACOS_PW" build.keychain
-
-          # Import certificate
-          echo "$MACOS_CERT" | base64 --decode > /tmp/certificate.p12
-          security import /tmp/certificate.p12 -k build.keychain -P "$MACOS_PW" -T /usr/bin/codesign
-          rm /tmp/certificate.p12
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_PW" build.keychain
-
-          # Sign the app inside the zip
-          zipfile=$(ls WezTerm-macos-*.zip)
-          unzip -q "$zipfile"
-          rm "$zipfile"
-          appdir=$(ls -d WezTerm-macos-*/)
-
-          /usr/bin/codesign --keychain build.keychain --force --options runtime \
-            --entitlements ci/macos-entitlement.plist --deep --sign "$MACOS_TEAM_ID" "${appdir}WezTerm.app/"
-
-          zip -r "$zipfile" "$appdir"
-
-          # Clean up keychain
-          security default-keychain -d user -s "$def_keychain"
-          security delete-keychain build.keychain || true
+        run: "bash .github/deploy-macos.sh"
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
         with:
