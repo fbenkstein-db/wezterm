@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 0 * * 1" # Weekly on Monday
   workflow_dispatch:
+  push:
+    branches:
+      - dot-github
 
 jobs:
   sync:
