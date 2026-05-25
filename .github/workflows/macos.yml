@@ -1,27 +1,16 @@
 name: macos
 
 on:
-  pull_request:
+  workflow_dispatch:
+  push:
     branches:
       - main
-    paths:
-      - "**/*.rs"
-      - "**/Cargo.lock"
-      - "**/Cargo.toml"
-      - ".cargo/config.toml"
-      - ".github/workflows/gen_macos.yml"
-      - "assets/fonts/**/*"
-      - "assets/icon/*"
-      - "assets/macos/**/*"
-      - "ci/deploy.sh"
-      - "ci/macos-entitlement.plist"
-      - "ci/tag-name.sh"
-      - "get-deps"
 
 jobs:
   build:
+    if: github.repository == 'fbenkstein-db/wezterm'
     runs-on: "macos-latest"
-    
+
     env:
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
@@ -36,9 +25,6 @@ jobs:
       - name: "Install Rust (ARM)"
         shell: bash
         run: "rustup target add aarch64-apple-darwin"
-      - name: "Install Rust (Intel)"
-        shell: bash
-        run: "rustup target add x86_64-apple-darwin"
       - name: "Compile with sccache"
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: "Cache Rust Dependencies"
@@ -49,35 +35,20 @@ jobs:
             vendor
             .cargo/config
           key: "cargo-deps-${{ hashFiles('**/Cargo.lock') }}"
-      - name: "Vendor dependecies"
+      - name: "Vendor dependencies"
         if: steps.cache-cargo-vendor.outputs.cache-hit != 'true'
         shell: bash
         run: "cargo vendor --locked --versioned-dirs >> .cargo/config"
-      - name: "Install System Deps"
-        shell: bash
-        run: "env CI=yes PATH=$PATH ./get-deps"
-      - name: "Build wezterm (Release mode Intel)"
-        shell: bash
-        run: "cargo build --target x86_64-apple-darwin -p wezterm --release"
-      - name: "Build wezterm (Release mode ARM)"
+      - name: "Build wezterm (ARM)"
         shell: bash
         run: "cargo build --target aarch64-apple-darwin -p wezterm --release"
-      - name: "Build wezterm-gui (Release mode Intel)"
-        shell: bash
-        run: "cargo build --target x86_64-apple-darwin -p wezterm-gui --release"
-      - name: "Build wezterm-gui (Release mode ARM)"
+      - name: "Build wezterm-gui (ARM)"
         shell: bash
         run: "cargo build --target aarch64-apple-darwin -p wezterm-gui --release"
-      - name: "Build wezterm-mux-server (Release mode Intel)"
-        shell: bash
-        run: "cargo build --target x86_64-apple-darwin -p wezterm-mux-server --release"
-      - name: "Build wezterm-mux-server (Release mode ARM)"
+      - name: "Build wezterm-mux-server (ARM)"
         shell: bash
         run: "cargo build --target aarch64-apple-darwin -p wezterm-mux-server --release"
-      - name: "Build strip-ansi-escapes (Release mode Intel)"
-        shell: bash
-        run: "cargo build --target x86_64-apple-darwin -p strip-ansi-escapes --release"
-      - name: "Build strip-ansi-escapes (Release mode ARM)"
+      - name: "Build strip-ansi-escapes (ARM)"
         shell: bash
         run: "cargo build --target aarch64-apple-darwin -p strip-ansi-escapes --release"
       - name: "Install cargo-nextest from Cargo"
@@ -87,12 +58,17 @@ jobs:
           cache-key: "macos"
       - name: "Test"
         shell: bash
-        run: "cargo nextest run --all --no-fail-fast --target=x86_64-apple-darwin"
+        run: "cargo nextest run --all --no-fail-fast --target=aarch64-apple-darwin"
       - name: "Package"
+        env:
+          MACOS_CERT: ${{ secrets.MACOS_CERT }}
+          MACOS_CERT_PW: ${{ secrets.MACOS_CERT_PW }}
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
         shell: bash
-        run: "bash ci/deploy.sh"
+        run: "bash .github/deploy-macos.sh"
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
         with:
           name: "macos"
           path: "WezTerm-*.zip"
+          retention-days: 14
