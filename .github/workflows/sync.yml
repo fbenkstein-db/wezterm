@@ -1,0 +1,56 @@
+name: sync
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # Weekly on Monday
+  workflow_dispatch:
+  push:
+    branches:
+      - dot-github
+
+jobs:
+  sync:
+    if: github.repository == 'fbenkstein-db/wezterm'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: "Checkout dot-github branch"
+        uses: actions/checkout@v4
+        with:
+          ref: dot-github
+          fetch-depth: 1
+
+      - name: "Sync upstream main with custom .github"
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save our .github and the dot-github commit hash
+          cp -r .github /tmp/custom-github
+          DOT_GITHUB_SHA=$(git rev-parse HEAD)
+
+          # Fetch upstream main
+          git remote add upstream https://github.com/wezterm/wezterm.git
+          git fetch upstream main
+
+          # Start from upstream main
+          git checkout -B sync-temp upstream/main
+
+          # Replace .github with our custom version
+          git rm -rf .github
+          cp -r /tmp/custom-github .github
+          git add .github
+
+          # Create a merge commit with both upstream main and dot-github as parents
+          TREE=$(git write-tree)
+          MERGE_COMMIT=$(git commit-tree "$TREE" \
+            -p upstream/main \
+            -p "$DOT_GITHUB_SHA" \
+            -m "Sync upstream main with custom .github from dot-github branch")
+
+          # Force-push the merge commit to main
+          git push origin "$MERGE_COMMIT":refs/heads/main --force
